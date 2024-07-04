@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "expo-imgcheck",
+    "slug": "expo-imgcheck",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "jsEngine": "hermes",
+    
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.launghsai.expoimgcheck",
+        "jsEngine": "jsc"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.launghsai.expoimgcheck"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
