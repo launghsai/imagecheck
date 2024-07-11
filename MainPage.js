@@ -9,6 +9,7 @@ import AppView from './src/Components/AppView';
 import AppText from './src/Components/AppText';
 import ImgToBase64 from 'react-native-image-base64';
 import ImageResizer from 'react-native-image-resizer';
+import ImageSize from 'react-native-image-size'
 // import cv from 'opencv.js';
 
 
@@ -17,6 +18,7 @@ export default function MainPage({ navigation }) {
   const imageRef = useRef(null);
   const [imageUrl, setImageUrl] = useState(null);
   const [imageUrlbase, setImageUrlbase] = useState(null);
+  const [imagedisplay, setImagedisplay] = useState(null);
   const [resultImage_1, setResultImage_1] = useState(null);
   const [resultImage_2, setResultImage_2] = useState(null);
   const [message, setMessage] = useState('Select an image');
@@ -28,12 +30,14 @@ export default function MainPage({ navigation }) {
   const [result_1, setResult_1] = useState({});
   const [result_2, setResult_2] = useState({});
   const [result_3, setResult_3] = useState({});
+  const [result_4, setResult_4] = useState({});
   const [first, setFirst] = useState(true);
   const [time_1, setTime_1] = useState('');
   const [time_2, setTime_2] = useState('');
   const [time_3, setTime_3] = useState('');
   const [modalvisible, setModalvisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [finalresult, setFinalresult] = useState(false);
 
   const checkForBlurryMaxLaplacian = (imagedata) => {
     return new Promise((resolve, reject) => {
@@ -52,6 +56,14 @@ export default function MainPage({ navigation }) {
   const checkForBlurryVarianceLaplacian = (imageAsBase64) => {
     return new Promise((resolve, reject) => {
       OpenCV.CheckBlurryVarianceOfLaplacian(imageAsBase64, (error, data) => {
+
+        resolve(data);
+      });
+    });
+  }
+  const checkBlurryGradientMagnitude = (imageAsBase64) => {
+    return new Promise((resolve, reject) => {
+      OpenCV.CheckBlurryGradientMagnitude(imageAsBase64, (error, data) => {
 
         resolve(data);
       });
@@ -96,12 +108,19 @@ export default function MainPage({ navigation }) {
 
   let checkImageall = async (image) => {
     try {
+
+      // let isok = await getImagesize(imageUrlbase)
+      // if (!isok) {
+      //   alert('รูปภาพขนาดเล็กเกินไป')
+      //   return
+      // }
       let maxlaplacian = {
         image: image,
         threshold: 200 // กำหนดเป็น 200
       }
       const startTime = performance.now();
       let Maxlapliacian = await checkForBlurryMaxLaplacian(maxlaplacian)
+      let gradient = await checkBlurryGradientMagnitude(image)
       const secondTime = performance.now();
       let Variance = await checkForBlurryVarianceLaplacian(image)
       const ThirdTime = performance.now();
@@ -116,9 +135,28 @@ export default function MainPage({ navigation }) {
       console.log(Maxlapliacian, " lapliacian")
       console.log(Variance, " Variance")
       console.log(cannyedge, " cannyedge")
+      console.log(gradient, " gradient")
       setResult_1(Maxlapliacian)
       setResult_2(Variance)
       setResult_3(cannyedge)
+      setResult_4(gradient)
+      // ถ้า cannyedge เบลอ เท่ากับ blur เลย
+      // ถ้า cannyedge ไม่เบลอ เช็ค Variance ถ้าเบลอ เท่ากับเบลอ
+      // นอกนั้นไม่เบลอ
+      // if (cannyedge?.isBlur) {
+      //   setFinalresult(true)
+      // } else if (Variance?.isBlur) {
+      //   setFinalresult(true)
+      // } else {
+      //   setFinalresult(false)
+      // }
+
+      // ถ้า อันใดอันหนึ่งเบลอ เท่ากับ เบลอ...ไม่เบลอทั้งสองถึงจะชัด
+      if (Variance?.isBlur || cannyedge?.isBlur || gradient?.isBlur) {
+        setFinalresult(true)
+      } else {
+        setFinalresult(false)
+      }
     } catch (error) {
       console.log(error, " ERROR")
     }
@@ -133,7 +171,7 @@ export default function MainPage({ navigation }) {
   }
   const resizeAsync = async (url, width, height, quality, sizelimit) => {
     let respond = await resizeimage(url, width, height, quality, sizelimit)
-    console.log(respond,  " respond")
+    console.log(respond, " respond")
     if (respond) {
       let base64String = await ImgToBase64.getBase64String(respond.uri).then(base64String => {
         return { data: base64String, size: Math.ceil(respond.size / 1000) };
@@ -160,7 +198,7 @@ export default function MainPage({ navigation }) {
     console.log(sizelimit, " sizelimit")
     console.log(url, " url")
     return ImageResizer.createResizedImage(url, width, height, 'JPEG', quality).then((response) => {
-      console.log(response," GG JA")
+      console.log(response, " GG JA")
       if (response.size > sizelimit) {
         if (quality < 1) {
           return;
@@ -182,15 +220,37 @@ export default function MainPage({ navigation }) {
 
   useEffect(() => {
     if (imageUrlbase) {
-      checkImageall(imageUrlbase)
-      convertimg(imageUrlbase)
-      checkImageQuality(imageUrlbase)
+      processImage(imageUrlbase)
       setFirst(false)
     }
   }, [imageUrlbase])
 
   const displayPress = () => {
     setModalvisible(true)
+  }
+  const processImage = async (base64) => {
+    let result = await checkimagepassed(base64)
+    if (result) {
+      checkImageall(base64)
+      convertimg(base64)
+      setImagedisplay(base64)
+    } else {
+      alert('รูปภาพมีขนาดเล็กเกินไป !!')
+    }
+
+
+  }
+
+  const checkimagepassed = async (base64) => {
+    const uri = `data:image/jpeg;base64,${base64}`;
+    const { width, height } = await ImageSize.getSize(uri);
+    console.log(width, " WIDTH")
+    console.log(height, " HEIGHT")
+    if (width < 400 && height < 400) {
+      return false
+    } else {
+      return true
+    }
   }
 
   const handleImagePick = async () => {
@@ -275,36 +335,36 @@ export default function MainPage({ navigation }) {
       // const blob = await response.blob();
       const imageBlob = await response.blob();
       const image = await window.createImageBitmap(imageBlob);
-  
+
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
       canvas.width = image.width;
       canvas.height = image.height;
       context.drawImage(image, 0, 0);
-  
+
       const imageData = context.getImageData(0, 0, image.width, image.height);
       const data = imageData.data;
       let sum = 0;
       let sqSum = 0;
-  
+
       for (let i = 0; i < data.length; i += 4) {
         // Convert grayscale (assuming the data is RGBA)
         const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
         sum += gray;
         sqSum += gray * gray;
       }
-  
+
       const mean = sum / (data.length / 4);
       const variance = sqSum / (data.length / 4) - mean * mean;
-      console.log('pixel variance :',variance)
+      console.log('pixel variance :', variance)
       // setVariance(variance);
-  
+
       const threshold = 400; // Adjust this threshold as needed
       // setIsLowQuality(variance < threshold);
     } catch (error) {
       console.log(error, " ERROR JA")
     }
-   
+
   };
 
 
@@ -312,9 +372,12 @@ export default function MainPage({ navigation }) {
     <AppView>
       <View style={styles.container}>
         <View style={styles.imageBox}>
-          {imageUrlbase && (
-            <Image ref={imageRef} source={{ uri: 'data:image/jpeg;base64,' + imageUrlbase }} style={styles.image} />
+          {imagedisplay && (
+            <Image ref={imageRef} source={{ uri: 'data:image/jpeg;base64,' + imagedisplay }} style={styles.image} />
           )}
+          {/* {imageUrlbase && (
+            <Image ref={imageRef} source={{ uri: 'data:image/jpeg;base64,' + imageUrlbase }} style={styles.image} />
+          )} */}
         </View>
         <View style={styles.rowBox}>
           <TouchableOpacity onPress={handleImagePick} style={styles.pickedbutton}>
@@ -346,6 +409,46 @@ export default function MainPage({ navigation }) {
             <View style={styles.horiBox}>
 
               <View style={styles.contentBox}>
+                <View style={[styles.contentItem, { backgroundColor: 'green' }]}>
+                  <AppText white bold>Gradient Mag</AppText>
+                </View>
+                <View style={[styles.contentItem, { flexDirection: 'row', borderBottomWidth: 0.5, paddingHorizontal: 10 }]}>
+                  <View style={{ flex: 0.5 }}>
+                    <AppText bold>BLURRY :</AppText>
+                  </View>
+                  <View style={{ flex: 0.5 }}>
+                    {
+                      result_4?.isBlur !== undefined &&
+                      <AppText style={{ color: result_4.isBlur ? 'green' : 'red' }} bold>{result_4.isBlur ? "TRUE" : "FALSE"}</AppText>
+                    }
+                  </View>
+                </View>
+                <View style={[styles.contentItem, { flexDirection: 'row', borderBottomWidth: 0.5, paddingHorizontal: 10 }]}>
+                  <View style={{ flex: 0.5 }}>
+                    <AppText bold>Result :</AppText>
+                  </View>
+                  <View style={{ flex: 0.5 }}>
+                    <AppText bold>{result_4?.variance?.toFixed(2) || ''}</AppText>
+                  </View>
+                </View>
+                <View style={[styles.contentItem, { flexDirection: 'row', borderBottomWidth: 0.5, paddingHorizontal: 10 }]}>
+                  <View style={{ flex: 0.5 }}>
+                    <AppText bold>Threshold :</AppText>
+                  </View>
+                  <View style={{ flex: 0.5 }}>
+                    <AppText bold>{result_4?.blurThreshold || ''}</AppText>
+                  </View>
+                </View>
+                <View style={[styles.contentItem, { flexDirection: 'row', borderBottomWidth: 0.5, paddingHorizontal: 10 }]}>
+                  <View style={{ flex: 0.5 }}>
+                    <AppText bold>Time :</AppText>
+                  </View>
+                  <View style={{ flex: 0.5 }}>
+                    <AppText bold>{time_1 || ''}</AppText>
+                  </View>
+                </View>
+              </View>
+              {/* <View style={styles.contentBox}>
                 <View style={[styles.contentItem, { backgroundColor: 'green' }]}>
                   <AppText white bold>Max-Laplacian</AppText>
                 </View>
@@ -381,7 +484,7 @@ export default function MainPage({ navigation }) {
                     <AppText bold>{time_1 || ''}</AppText>
                   </View>
                 </View>
-              </View>
+              </View> */}
               <View style={styles.contentBox}>
                 <View style={[styles.contentItem, { backgroundColor: 'green' }]}>
                   <AppText white bold>Variance Laplacian</AppText>
@@ -391,7 +494,11 @@ export default function MainPage({ navigation }) {
                     <AppText bold>BLURRY :</AppText>
                   </View>
                   <View style={{ flex: 0.5 }}>
-                    <AppText style={{ color: result_2.isBlur ? 'green' : 'red' }} bold>{result_2.isBlur ? "TRUE" : "FALSE"}</AppText>
+                    {
+                      result_2?.isBlur !== undefined &&
+                      <AppText style={{ color: result_2.isBlur ? 'green' : 'red' }} bold>{result_2.isBlur ? "TRUE" : "FALSE"}</AppText>
+
+                    }
                   </View>
                 </View>
                 <View style={[styles.contentItem, { flexDirection: 'row', borderBottomWidth: 0.5, paddingHorizontal: 10 }]}>
@@ -428,7 +535,11 @@ export default function MainPage({ navigation }) {
                     <AppText bold>BLURRY :</AppText>
                   </View>
                   <View style={{ flex: 0.6 }}>
-                    <AppText style={{ color: result_3.isBlur ? 'green' : 'red' }} bold>{result_3.isBlur ? "TRUE" : "FALSE"}</AppText>
+                    {
+                      result_3?.isBlur !== undefined &&
+                      <AppText style={{ color: result_3.isBlur ? 'green' : 'red' }} bold>{result_3.isBlur ? "TRUE" : "FALSE"}</AppText>
+
+                    }
                   </View>
                 </View>
                 <View style={[styles.contentItem, { flexDirection: 'row', borderBottomWidth: 0.5, paddingHorizontal: 10 }]}>
@@ -457,7 +568,9 @@ export default function MainPage({ navigation }) {
                   </View>
                 </View>
               </View>
-
+            </View>
+            <View style={{ width: '100%', height: 60, alignItems: 'center' }}>
+              <AppText style={{ color: finalresult ? 'red' : 'green' }} bold> FINAL RESULT :{finalresult ? "BLUR" : "NOT BLUR"}</AppText>
             </View>
           </View>
 

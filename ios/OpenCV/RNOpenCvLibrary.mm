@@ -60,6 +60,11 @@ RCT_EXPORT_METHOD(CheckBlurryVarianceOfLaplacian:(NSString *)imageAsBase64 callb
 //                                           count:count];
   callback(@[[NSNull null],result]);
 }
+RCT_EXPORT_METHOD(CheckBlurryGradientMagnitude:(NSString *)imageAsBase64 callback:(RCTResponseSenderBlock)callback) {
+  UIImage* image = [self decodeBase64ToImage:imageAsBase64];
+  NSDictionary *result  = [self isImageBlurryGradientmagnitude:image];
+  callback(@[[NSNull null],result]);
+}
 RCT_EXPORT_METHOD(isImageBlurryMixedFunction:(NSString *)imageAsBase64 callback:(RCTResponseSenderBlock)callback) {
   UIImage* image = [self decodeBase64ToImage:imageAsBase64];
   BOOL isImageBlurryResult = [self isImageBlurryMixed:image];
@@ -244,6 +249,36 @@ RCT_EXPORT_METHOD(convertImageCannyEdge:(NSString *)imageAsBase64 callback:(RCTR
     @"isBlur": @(isBlurry),
     @"variance": @(variance),
     @"blurThreshold": @(blurThreshold)
+  };
+  return  result;
+}
+- (NSDictionary *)isImageBlurryGradientmagnitude:(UIImage *)image {
+  BOOL isBlurry = NO;
+  cv::Mat matImage = [self convertUIImageToCVMat:image];
+  cv::Mat matImageGrey;
+  cv::cvtColor(matImage, matImageGrey, cv::COLOR_BGRA2GRAY);
+  // Calculate gradients
+     cv::Mat grad_x, grad_y;
+     cv::Sobel(matImageGrey, grad_x, CV_64F, 1, 0, 3);
+     cv::Sobel(matImageGrey, grad_y, CV_64F, 0, 1, 3);
+
+     // Compute gradient magnitude
+     cv::Mat grad;
+     cv::magnitude(grad_x, grad_y, grad);
+
+     // Compute the mean and standard deviation of the gradient
+     cv::Scalar mean, stddev;
+     cv::meanStdDev(grad, mean, stddev);
+     double variance = stddev.val[0] * stddev.val[0];
+  // Threshold for blurriness (adjust this value as needed)
+     double threshold = 500.0;
+  if (variance < threshold) {
+    isBlurry = YES;
+  }
+  NSDictionary *result = @{
+    @"isBlur": @(isBlurry),
+    @"variance": @(variance),
+    @"blurThreshold": @(threshold)
   };
   return  result;
 }
