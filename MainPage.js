@@ -10,6 +10,8 @@ import AppText from './src/Components/AppText';
 import ImgToBase64 from 'react-native-image-base64';
 import ImageResizer from 'react-native-image-resizer';
 import ImageSize from 'react-native-image-size'
+import Plusimage from './src/Image/plus.png'
+// import ZoomableView from 'react-native-zoomable-view';
 // import cv from 'opencv.js';
 
 
@@ -21,6 +23,7 @@ export default function MainPage({ navigation }) {
   const [imagedisplay, setImagedisplay] = useState(null);
   const [resultImage_1, setResultImage_1] = useState(null);
   const [resultImage_2, setResultImage_2] = useState(null);
+  const [imagearray_1, setImagearray_1] = useState([]);
   const [message, setMessage] = useState('Select an image');
   const [isblur, setIsblur] = useState(false);
   const [text, setText] = useState('');
@@ -171,7 +174,7 @@ export default function MainPage({ navigation }) {
   }
   const resizeAsync = async (url, width, height, quality, sizelimit) => {
     let respond = await resizeimage(url, width, height, quality, sizelimit)
-    console.log(respond, " respond")
+    // console.log(respond, " respond")
     if (respond) {
       let base64String = await ImgToBase64.getBase64String(respond.uri).then(base64String => {
         return { data: base64String, size: Math.ceil(respond.size / 1000) };
@@ -179,8 +182,10 @@ export default function MainPage({ navigation }) {
 
       return new Promise((resolve, reject) => {
         Image.getSize(respond.uri, (_height, _width) => {
-          respond.width = width;
-          respond.height = height;
+          respond.width = _width;
+          respond.height = _height;
+          // respond.width = width;
+          // respond.height = height;
           respond.base64String = base64String;
           resolve(respond);
         })
@@ -192,18 +197,24 @@ export default function MainPage({ navigation }) {
     }
   }
   const resizeimage = async (url, width, height, quality, sizelimit) => {
-    console.log(width, " width")
-    console.log(height, " height")
-    console.log(quality, " quality")
-    console.log(sizelimit, " sizelimit")
-    console.log(url, " url")
-    return ImageResizer.createResizedImage(url, width, height, 'JPEG', quality).then((response) => {
-      console.log(response, " GG JA")
+    // console.log(width, " width")
+    // console.log(height, " height")
+    // console.log(quality, " quality")
+    // console.log(sizelimit, " sizelimit")
+    // console.log(url, " url")
+    return ImageResizer.createResizedImage(url, width, height, 'JPEG', quality).then(async (response) => {
+      // console.log(response, " GG JA")
+      let base64String = await ImgToBase64.getBase64String(response.uri)
+      // .then(base64String => {
+      //   return  base64String
+      // }).catch(err => console.log(err));
+      let arr = { size: response.size, width: response.width, height: response.height, data: base64String }
+      setImagearray_1(prv => [...prv, arr])
       if (response.size > sizelimit) {
         if (quality < 1) {
           return;
         }
-        return resizeimage(url, width, height, quality - 10);
+        return resizeimage(url, width, height, quality - 10, sizelimit);
       }
       else {
         return response;
@@ -224,19 +235,24 @@ export default function MainPage({ navigation }) {
       setFirst(false)
     }
   }, [imageUrlbase])
+  useEffect(() => {
+    // console.log(imagearray_1, " IMAGE ARRAY")
+  }, [imagearray_1])
 
   const displayPress = () => {
     setModalvisible(true)
   }
   const processImage = async (base64) => {
-    let result = await checkimagepassed(base64)
-    if (result) {
-      checkImageall(base64)
-      convertimg(base64)
-      setImagedisplay(base64)
-    } else {
-      alert('รูปภาพมีขนาดเล็กเกินไป !!')
+    try {
+      await checkImageall(base64)
+      await convertimg(base64)
+      await setImagedisplay(base64)
+      await setLoading(false)
+    } catch (error) {
+      await setLoading(false)
+      console.log(error, " ERROR")
     }
+
 
 
   }
@@ -255,6 +271,7 @@ export default function MainPage({ navigation }) {
 
   const handleImagePick = async () => {
     try {
+
       let result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         base64: true,
@@ -262,23 +279,36 @@ export default function MainPage({ navigation }) {
         aspect: [4, 3],
         quality: 1,
       });
+
       if (result?.canceled) {
         console.log('User canceled image picker');
         return;
       }
+      await setLoading(true)
       if (result?.assets[0]?.uri) {
         setImageUrl(result.assets[0].uri);
-        setImageUrlbase(result.assets[0].base64)
-        // let res  = await resizeAsync(result.assets[0].uri, 1000, 1000, 90, 600 * 1000)
-        // console.log(res,  " image response")
+        let ispass = await checkimagepassed(result.assets[0].base64)
+        if (ispass) {
+          setImagearray_1([])
+          // setImageUrlbase(result.assets[0].base64)
+          let res = await resizeAsync(result.assets[0].uri, 1000, 1000, 90, 600 * 1000)
+          // let res = await resizeAsync(result.assets[0].uri, 1000, 1000, 90, 300 * 1000)
+          setImageUrlbase(res?.base64String?.data || null)
+        } else {
+          await setLoading(false)
+          alert('รูปภาพมีขนาดเล็กเกินไป !!')
+        }
+
       }
     } catch (error) {
+      await setLoading(false)
       console.error(error, " ERROR")
     }
 
   };
   const handleImageCamera = async () => {
     try {
+
       let result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         base64: true,
@@ -286,17 +316,34 @@ export default function MainPage({ navigation }) {
         aspect: [4, 3],
         quality: 0.7,
       });
+
       // console.log(result, " result")
       if (result?.canceled) {
         console.log('User canceled image picker');
         return;
       }
+      await setLoading(true)
       if (result?.assets[0]?.uri) {
         setImageUrl(result.assets[0].uri);
-        setImageUrlbase(result.assets[0].base64)
+        let ispass = await checkimagepassed(result.assets[0].base64)
+        if (ispass) {
+          setImagearray_1([])
+          let res = await resizeAsync(result.assets[0].uri, 1000, 1000, 90, 300 * 1000)
+          // let res = await resizeAsync(result.assets[0].uri, 1000, 1000, 90, 300 * 1000)
+          setImageUrlbase(res?.base64String?.data || null)
+        } else {
+          await setLoading(false)
+          alert('รูปภาพมีขนาดเล็กเกินไป !!')
+        }
+
       }
+      // if (result?.assets[0]?.uri) {
+      //   setImageUrl(result.assets[0].uri);
+      //   setImageUrlbase(result.assets[0].base64)
+      // }
 
     } catch (error) {
+      await setLoading(false)
       console.error(error, " ERROR")
     }
 
@@ -369,12 +416,22 @@ export default function MainPage({ navigation }) {
 
 
   return (
-    <AppView>
+    <AppView loading={loading}>
       <View style={styles.container}>
         <View style={styles.imageBox}>
           {imagedisplay && (
-            <Image ref={imageRef} source={{ uri: 'data:image/jpeg;base64,' + imagedisplay }} style={styles.image} />
-          )}
+            <Image ref={imageRef} source={{ uri: 'data:image/jpeg;base64,' + imagedisplay }} style={styles.image} resizeMode='cover' />
+          )
+          }
+          {!imagedisplay && (
+            <View style={{ justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+              <TouchableOpacity onPress={handleImagePick}>
+                <Image source={Plusimage} style={{ height: 150, width: 150 }} />
+              </TouchableOpacity>
+            </View>
+          )
+          }
+
           {/* {imageUrlbase && (
             <Image ref={imageRef} source={{ uri: 'data:image/jpeg;base64,' + imageUrlbase }} style={styles.image} />
           )} */}
@@ -394,18 +451,26 @@ export default function MainPage({ navigation }) {
             <Text style={{ color: 'white' }} >Display Image</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            onPress={() => { navigation.navigate('showimage', { image: imagearray_1 }) }}
+            style={styles.pickedbutton}>
+            <Text style={{ color: 'white' }} >Show</Text>
+          </TouchableOpacity>
+          {/* <TouchableOpacity
             onPress={() => { navigation.navigate('Detection') }}
             style={styles.pickedbutton}>
             <Text style={{ color: 'white' }} >Detection</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
-        <View style={{ marginVertical: 10 }} />
+        <View style={{ marginVertical: 5 }} />
         <View style={{ flexDirection: 'row' }}>
           <View style={{
             width: '100%',
             backgroundColor: 'white'
 
           }}>
+            <View style={{ width: '100%', height: 60, alignItems: 'center', backgroundColor: 'darkblue', justifyContent: 'center' }}>
+              <AppText style={{ fontSize: 24 }} bold white > FINAL RESULT : {finalresult ? "BLUR" : "NOT BLUR"}</AppText>
+            </View>
             <View style={styles.horiBox}>
 
               <View style={styles.contentBox}>
@@ -569,9 +634,7 @@ export default function MainPage({ navigation }) {
                 </View>
               </View>
             </View>
-            <View style={{ width: '100%', height: 60, alignItems: 'center' }}>
-              <AppText style={{ color: finalresult ? 'red' : 'green' }} bold> FINAL RESULT :{finalresult ? "BLUR" : "NOT BLUR"}</AppText>
-            </View>
+
           </View>
 
         </View>
@@ -662,12 +725,12 @@ const styles = StyleSheet.create({
     margin: 2
   },
   imageBox: {
-    width: 400,
+    width: 600,
     height: 400,
-    borderWidth: 5,
+    borderWidth: 2,
     borderRadius: 5,
-    borderColor: 'green',
-    borderStyle: 'dashed',
+    borderColor: 'black',
+    // borderStyle: 'dashed',
     padding: 2,
     marginBottom: 20
   },
@@ -685,7 +748,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderColor: 'sliver',
     borderWidth: 1,
-    height: 400,
+    height: 300,
     marginHorizontal: 2,
     marginVertical: 10,
   },

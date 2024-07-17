@@ -7,6 +7,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MainPage from './MainPage';
 import DetectionPage from './DetectionPage';
+import Showimage from './Showimage';
 // import { useNavigation } from '@react-navigation/native-stack';
 // import cv from 'opencv.js';
 
@@ -20,6 +21,7 @@ export default function App({ }) {
       <Stack.Navigator >
         <Stack.Screen name="MainPage" component={MainPage} options={{ headerShown: false }} initial />
         <Stack.Screen name="Detection" key={'Detection'} component={DetectionPage}  options={{ headerShown: false }}  />
+        <Stack.Screen name="showimage" key={'showimage'} component={Showimage}  options={{ headerShown: false }}  />
       </Stack.Navigator>
     </NavigationContainer>
   );
